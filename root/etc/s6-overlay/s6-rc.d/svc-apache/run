@@ -1,0 +1,121 @@
+#!/usr/bin/with-contenv bash
+# shellcheck shell=bash
+
+echo "**** Starting Apache for Blessing Skin ****"
+
+# ---------------------------------------------------------------------------
+# One-time setup (idempotent). Runs before Apache starts.
+# ---------------------------------------------------------------------------
+echo "**** Updating Blessing Skin permissions ****"
+lsiown -R abc:abc \
+    /app \
+    /var/run/apache2 \
+    /var/log/apache2 \
+    /var/lock/apache2 \
+    /config
+
+echo "**** Ensuring config directory structure ****"
+mkdir -p \
+    /config/storage \
+    /config/storage/logs \
+    /config/storage/plugins \
+    /config/storage/framework/cache \
+    /config/storage/framework/sessions \
+    /config/storage/framework/views \
+    /app/bootstrap/cache
+
+echo "**** Generating .env if not present ****"
+if [[ ! -f /config/.env ]]; then
+    cat > /config/.env <<'EOF'
+APP_DEBUG=false
+APP_ENV=production
+APP_FALLBACK_LOCALE=en
+APP_URL=
+APP_KEY=
+DB_CONNECTION=sqlite
+DB_HOST=
+DB_PORT=
+DB_DATABASE=/config/storage/database.db
+DB_USERNAME=
+DB_PASSWORD=
+DB_PREFIX=
+PWD_METHOD=BCRYPT
+MAIL_MAILER=smtp
+MAIL_HOST=
+MAIL_PORT=465
+MAIL_ENCRYPTION=
+MAIL_USERNAME=
+MAIL_PASSWORD=
+MAIL_FROM_ADDRESS=
+MAIL_FROM_NAME=
+CACHE_DRIVER=file
+SESSION_DRIVER=file
+QUEUE_CONNECTION=sync
+REDIS_CLIENT=phpredis
+REDIS_HOST=127.0.0.1
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+PLUGINS_DIR=/config/storage/plugins
+PLUGINS_URL=
+EOF
+fi
+
+echo "**** Linking app data directories to /config ****"
+ln -sfnT /config/storage /app/storage
+ln -sfnT /config/.env /app/.env
+
+echo "**** Applying user-provided environment overrides ****"
+apply_env() {
+    local key="$1"
+    local val="${!key}"
+    if [[ -n "${val}" ]]; then
+        if grep -q "^${key}=" /config/.env; then
+            sed -ri "s|^${key}=.*|${key}=${val}|" /config/.env
+        else
+            echo "${key}=${val}" >> /config/.env
+        fi
+    fi
+}
+
+apply_env APP_DEBUG
+apply_env APP_ENV
+apply_env APP_URL
+apply_env DB_CONNECTION
+apply_env DB_HOST
+apply_env DB_PORT
+apply_env DB_DATABASE
+apply_env DB_USERNAME
+apply_env DB_PASSWORD
+apply_env DB_PREFIX
+apply_env PWD_METHOD
+apply_env PLUGINS_DIR
+apply_env PLUGINS_URL
+
+# If SQLite, make sure the DB path points to the persistent config location
+if [[ "${DB_CONNECTION:-sqlite}" = "sqlite" ]] && [[ -n "${DB_DATABASE:-}" ]]; then
+    if [[ "${DB_DATABASE}" != "/config/storage/database.db" ]]; then
+        sed -ri "s|^DB_DATABASE=.*|DB_DATABASE=${DB_DATABASE}|" /config/.env
+    fi
+fi
+
+echo "**** Generating application key if missing ****"
+if ! grep -q "^APP_KEY=base64" /config/.env; then
+    cd /app
+    lsiown -R abc:abc /config
+    s6-setuidgid abc php artisan key:generate
+    lsiown -R abc:abc /config
+fi
+
+echo "**** Ensuring SQLite database file exists ****"
+touch /config/storage/database.db
+lsiown -R abc:abc /config /app/bootstrap/cache
+
+echo "**** Setup complete, starting Apache ****"
+
+# Source Apache env (sets APACHE_RUN_USER=abc / APACHE_RUN_GROUP=abc).
+# The master runs as root so it can bind port 80, then drops workers to abc.
+. /etc/apache2/envvars
+
+exec \
+    s6-notifyoncheck -d -n 300 -w 1000 -c "nc -z localhost 80" \
+    apache2 -DFOREGROUND

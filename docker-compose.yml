@@ -1,0 +1,20 @@
+services:
+  blessing-skin:
+    image: ghcr.io/snowmoonss/blessing-skin-server:latest
+    container_name: blessing-skin
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Shanghai
+      # - APP_URL=https://skin.example.com
+      # - DB_CONNECTION=mysql
+      # - DB_HOST=mysql
+      # - DB_PORT=3306
+      # - DB_DATABASE=blessingskin
+      # - DB_USERNAME=blessingskin
+      # - DB_PASSWORD=secret
+    ports:
+      - "80:80"
+    volumes:
+      - ./config:/config
+    restart: unless-stopped
