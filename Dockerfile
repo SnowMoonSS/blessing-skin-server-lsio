@@ -30,8 +30,8 @@ RUN apk add --no-cache git curl unzip ca-certificates bash && \
       git clone --depth 1 --branch "${BLESSING_VERSION}" "${BLESSING_REPO}" . && \
       rm -rf .git; \
     fi && \
-    # sanity check
-    test -f /src/artisan && test -f /src/composer.json && \
+    # sanity check: artisan + public/index.php exist in both git and release payloads
+    test -f /src/artisan && test -f /src/public/index.php && \
     echo "Source ready"
 
 ###############################################################################
@@ -40,17 +40,23 @@ RUN apk add --no-cache git curl unzip ca-certificates bash && \
 FROM --platform=${BUILDPLATFORM} composer:latest AS vendor
 WORKDIR /src
 
+ARG BLESSING_SOURCE=git
 COPY --from=source /src ./
 
-RUN composer install \
-    --prefer-dist \
-    --no-dev \
-    --no-suggest \
-    --no-progress \
-    --no-autoloader \
-    --no-scripts \
-    --no-interaction \
-    --ignore-platform-reqs
+RUN if [ "${BLESSING_SOURCE}" = "git" ]; then \
+      echo "Installing PHP dependencies via composer" && \
+      composer install \
+        --prefer-dist \
+        --no-dev \
+        --no-suggest \
+        --no-progress \
+        --no-autoloader \
+        --no-scripts \
+        --no-interaction \
+        --ignore-platform-reqs; \
+    else \
+      echo "Release mode: vendor already bundled in the archive"; \
+    fi
 
 ###############################################################################
 # Stage: frontend — build webpack assets (only for git/source builds)
@@ -63,6 +69,8 @@ COPY --from=source /src ./
 
 RUN mkdir -p resources/views/assets public && \
     if [ "${BLESSING_SOURCE}" = "git" ]; then \
+      echo "Cleaning prior webpack output" && \
+      rm -rf public/app && \
       yarn install --frozen-lockfile && \
       yarn build && \
       cp resources/assets/src/images/bg.webp public/app/ 2>/dev/null || true && \
@@ -84,9 +92,14 @@ COPY --from=vendor /src/vendor ./vendor
 COPY --from=frontend /app/public ./public
 COPY --from=frontend /app/resources/views/assets ./resources/views/assets
 
-RUN composer dump-autoload --no-dev -o && \
-    rm -rf *.config.js *.config.ts tsconfig.* package.json yarn.lock node_modules/ \
-      resources/assets/ resources/misc resources/misc/backgrounds/ tools/ && \
+RUN if [ "${BLESSING_SOURCE}" = "git" ]; then \
+      echo "Optimizing autoloader and cleaning dev files" && \
+      composer dump-autoload --no-dev -o && \
+      rm -rf *.config.js *.config.ts tsconfig.* package.json yarn.lock node_modules/ \
+        resources/assets/ resources/misc resources/misc/backgrounds/ tools/; \
+    else \
+      echo "Release mode: using prebuilt application payload"; \
+    fi && \
     echo "Builder finished"
 
 ###############################################################################
@@ -132,8 +145,8 @@ RUN a2enmod rewrite headers && \
 # Bring in s6-overlay services + apache blessing config
 COPY root/ /
 
-RUN chmod +x \
-    /etc/s6-overlay/s6-rc.d/svc-apache/run && \
+RUN chmod +x /etc/s6-overlay/s6-rc.d/svc-bs/run && \
+    chmod +x /etc/s6-overlay/s6-rc.d/init-bs-config/run && \
     a2enconf blessing
 
 # Prepare the persistent /config directory (populated by the init script at runtime)
