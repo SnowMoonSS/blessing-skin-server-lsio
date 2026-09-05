@@ -3,8 +3,9 @@
 
 echo "**** Setup complete, starting Apache ****"
 
-# Source Apache env (sets APACHE_RUN_USER=abc / APACHE_RUN_GROUP=abc).
-# The master runs as root so it can bind port 80, then drops workers to abc.
+# Apache env (APACHE_RUN_USER/GROUP) is written into /etc/apache2/envvars by the
+# init-bs-config one-shot service, based on whether PUID/PGID were provided.
+# The master runs as root so it can bind port 80, then drops workers to that user.
 . /etc/apache2/envvars
 
 exec \

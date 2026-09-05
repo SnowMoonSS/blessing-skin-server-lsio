@@ -1,13 +1,37 @@
 #!/usr/bin/with-contenv bash
 # shellcheck shell=bash
 
-echo "**** Starting Apache for Blessing Skin ****"
+echo "**** Blessing Skin init ****"
 
 # ---------------------------------------------------------------------------
 # One-time setup (idempotent). Runs before Apache starts.
 # ---------------------------------------------------------------------------
+# Choose the Apache worker user:
+#  - PUID/PGID provided -> use the LSIO 'abc' user (mapped to those IDs)
+#  - otherwise          -> fall back to the Debian default (www-data)
+if [[ -z ${LSIO_NON_ROOT_USER} ]]; then
+    RUN_USER="abc"
+    RUN_GROUP="abc"
+else
+    RUN_USER="www-data"
+    RUN_GROUP="www-data"
+fi
+
+# Make Apache use the chosen user (envvars is sourced by svc-bs/run later).
+sed -ri "s/^export APACHE_RUN_USER=.*/export APACHE_RUN_USER=${RUN_USER}/" /etc/apache2/envvars
+sed -ri "s/^export APACHE_RUN_GROUP=.*/export APACHE_RUN_GROUP=${RUN_GROUP}/" /etc/apache2/envvars
+
+# Fix ownership: use lsiown for the mapped abc user, plain chown otherwise.
+own() {
+    if [[ "${RUN_USER}" = "abc" ]]; then
+        lsiown -R abc:abc "$@"
+    else
+        chown -R www-data:www-data "$@"
+    fi
+}
+
 echo "**** Updating Blessing Skin permissions ****"
-lsiown -R abc:abc \
+own \
     /app \
     /var/run/apache2 \
     /var/log/apache2 \
@@ -101,11 +125,11 @@ fi
 echo "**** Generating application key if missing ****"
 if ! grep -q "^APP_KEY=base64" /config/.env; then
     cd /app
-    lsiown -R abc:abc /config
-    s6-setuidgid abc php artisan key:generate
-    lsiown -R abc:abc /config
+    own /config
+    s6-setuidgid "${RUN_USER}" php artisan key:generate
+    own /config
 fi
 
 echo "**** Ensuring SQLite database file exists ****"
 touch /config/storage/database.db
-lsiown -R abc:abc /config /app/bootstrap/cache
+own /config /app/bootstrap/cache

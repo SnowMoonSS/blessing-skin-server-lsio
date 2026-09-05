@@ -133,12 +133,10 @@ RUN apt-get update && \
 # Copy the built application
 COPY --from=builder /app /app
 
-# Apache configuration: document root, run as abc, rewrite + headers
+# Apache configuration: document root, rewrite + headers.
 RUN a2enmod rewrite headers && \
     sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf && \
     sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf && \
-    sed -ri 's/export APACHE_RUN_USER=www-data/export APACHE_RUN_USER=abc/' /etc/apache2/envvars && \
-    sed -ri 's/export APACHE_RUN_GROUP=www-data/export APACHE_RUN_GROUP=abc/' /etc/apache2/envvars && \
     echo "ServerName localhost" > /etc/apache2/conf-available/servername.conf && \
     a2enconf servername
 
