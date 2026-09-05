@@ -124,6 +124,7 @@ docker run -d \
 | `PWD_METHOD` | 密码哈希算法 | `BCRYPT` |
 | `PLUGINS_DIR` | 插件目录 | `/data/plugins` |
 | `PLUGINS_URL` | 插件 URL | 未设置 |
+| `PLUGINS_REGISTRY` | 插件市场注册表地址（`{lang}` 会替换为语言） | `https://bs-plugins.littleservice.cn/registry_{lang}.json` |
 | `BLESSING_ENV` | 直接提供完整 `.env` 内容（多行），覆盖默认生成 | 未设置 |
 
 > 所有 `DB_*` / `APP_*` 变量会在容器启动时写入 `/config/.env`；`BLESSING_ENV` 会整体写入 `.env`（适用于需要自定义更多配置项的进阶场景）。

@@ -51,6 +51,19 @@ if [[ ! -f /config/.env ]]; then
     fi
 fi
 
+echo "**** Ensuring a working plugin market registry ****"
+# The 6.0.2 release default (gplane.coding.net) now returns a "user not logged
+# in" JSON without a `packages` key, which breaks the plugin market
+# ("Undefined array key 'packages'"). Default to the community registry used by
+# newer branches unless the user overrides PLUGINS_REGISTRY.
+if ! grep -q '^PLUGINS_REGISTRY=' /config/.env; then
+    if [[ -n "${PLUGINS_REGISTRY:-}" ]]; then
+        printf 'PLUGINS_REGISTRY=%s\n' "${PLUGINS_REGISTRY}" >> /config/.env
+    else
+        printf '%s\n' 'PLUGINS_REGISTRY=https://bs-plugins.littleservice.cn/registry_{lang}.json' >> /config/.env
+    fi
+fi
+
 echo "**** Linking .env to the persistent config ****"
 ln -sfnT /config/.env /app/.env
 
@@ -82,6 +95,7 @@ apply_env DB_PREFIX
 apply_env PWD_METHOD
 apply_env PLUGINS_DIR
 apply_env PLUGINS_URL
+apply_env PLUGINS_REGISTRY
 
 # If SQLite, make sure the DB path points to the persistent data directory
 if [[ "${DB_CONNECTION:-sqlite}" = "sqlite" ]] && [[ -n "${DB_DATABASE:-}" ]]; then
