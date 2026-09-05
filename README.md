@@ -26,8 +26,8 @@
 
 s6-overlay 作为 PID 1 运行，提供僵尸进程回收、服务依赖管理、优雅终止、自动重启与就绪通知。本仓库的 s6 配置位于：
 
-* `root/etc/s6-overlay/s6-rc.d/init-blessing-config/` — 配置初始化
-* `root/etc/s6-overlay/s6-rc.d/svc-apache/` — Apache 服务
+* `root/etc/s6-overlay/s6-rc.d/init-bs-config/` — 配置初始化
+* `root/etc/s6-overlay/s6-rc.d/svc-bs/` — Apache 服务
 
 ### 2. PUID / PGID 用户映射
 
@@ -54,9 +54,13 @@ environment:
   - DOCKER_MODS=linuxserver/mods:universal-cloudflared
 ```
 
-### 7. 标准化的 /config 路径
+### 7. 标准化的 /config 与 /data
 
-Blessing Skin 的数据（`.env`、SQLite 数据库、插件、上传、日志）存储在 `/app/storage`，本镜像将其软链到 `/config`，挂载 `/config` 即可持久化所有数据。
+与 LinuxServer 官方一致，配置与数据分离：
+
+* `/config` — 存放 `.env` 配置，挂载 `./config:/config` 持久化。
+* `/data`  — 存放 `storage`（SQLite 数据库、日志、插件、framework 缓存等），挂载 `./data:/data` 持久化。
+* 镜像把 `/app/storage` 软链到 `/data`、`/app/.env` 软链到 `/config/.env`；首次启动时把内置的 `storage` 目录树播种到 `/data`。
 
 ## 快速开始
 
@@ -81,7 +85,8 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./config:/config
+      - ./config:/config   # .env 配置
+      - ./data:/data       # storage / 数据库 / 插件等数据
     restart: unless-stopped
 ```
 
@@ -95,12 +100,13 @@ docker run -d \
   -p 80:80 \
   -e PUID=1000 -e PGID=1000 -e TZ=Asia/Shanghai \
   -v ./config:/config \
+  -v ./data:/data \
   ghcr.io/snowmoonss/blessing-skin-server:latest
 ```
 
 ### 完成安装
 
-启动后访问 `http://<host>/setup` 进入安装向导，按提示完成初始化。上传皮肤时请确认 `gd` / `imagick` 扩展正常（日志见 `/config/storage/logs/laravel.log`）。
+启动后访问 `http://<host>/setup` 进入安装向导，按提示完成初始化。上传皮肤时请确认 `gd` / `imagick` 扩展正常（日志见 `/data/logs/laravel.log`）。
 
 ## 环境变量
 
@@ -112,14 +118,15 @@ docker run -d \
 | `APP_DEBUG` | 是否开启调试 | `false` |
 | `DB_CONNECTION` | `sqlite` 或 `mysql` | `sqlite` |
 | `DB_HOST` / `DB_PORT` | MySQL 地址 / 端口 | 未设置 |
-| `DB_DATABASE` | 数据库名或 SQLite 文件路径 | `/config/storage/database.db` |
+| `DB_DATABASE` | 数据库名或 SQLite 文件路径 | `/data/database.db` |
 | `DB_USERNAME` / `DB_PASSWORD` | MySQL 用户 / 密码 | 未设置 |
 | `DB_PREFIX` | 数据表前缀 | 未设置 |
 | `PWD_METHOD` | 密码哈希算法 | `BCRYPT` |
-| `PLUGINS_DIR` | 插件目录 | `/config/storage/plugins` |
+| `PLUGINS_DIR` | 插件目录 | `/data/plugins` |
 | `PLUGINS_URL` | 插件 URL | 未设置 |
+| `BLESSING_ENV` | 直接提供完整 `.env` 内容（多行），覆盖默认生成 | 未设置 |
 
-> 所有 `DB_*` / `APP_*` 变量会在容器启动时写入 `/config/.env`。
+> 所有 `DB_*` / `APP_*` 变量会在容器启动时写入 `/config/.env`；`BLESSING_ENV` 会整体写入 `.env`（适用于需要自定义更多配置项的进阶场景）。
 
 ## 开发与构建
 
@@ -165,4 +172,3 @@ docker build -f Dockerfile \
 
 * [Blessing Skin](https://github.com/bs-community/blessing-skin-server) — 优秀的皮肤托管应用
 * [LinuxServer.io](https://linuxserver.io/) — 业界领先的 Docker 基础镜像与运维实践
-* [MCSManager-lsio](https://github.com/SnowMoonSS/MCSManager-lsio) — 本项目的架构参考

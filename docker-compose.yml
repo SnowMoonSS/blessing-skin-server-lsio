@@ -16,5 +16,6 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./config:/config
+      - ./config:/config   # .env 等配置
+      - ./data:/data       # storage / 数据库 / 插件等数据
     restart: unless-stopped

@@ -29,20 +29,29 @@ own() {
 echo "**** Updating Blessing Skin permissions ****"
 own \
     /config \
+    /data \
     /app/bootstrap/cache \
     /var/run/apache2 \
     /var/log/apache2 \
     /var/lock/apache2
 
-echo "**** Ensuring config directory structure ****"
-mkdir -p \
-    /config/storage \
-    /config/storage/logs \
-    /config/storage/plugins \
-    /config/storage/framework/cache \
-    /config/storage/framework/sessions \
-    /config/storage/framework/views \
-    /app/bootstrap/cache
+echo "**** Migrating bundled storage into /data (first run) ****"
+mkdir -p /data
+if [[ -e /app/storage && ! -L /app/storage ]]; then
+    if [[ -z "$(ls -A /data 2>/dev/null)" ]]; then
+        echo "Seeding /data from bundled /app/storage tree"
+        cp -a /app/storage/. /data/
+    else
+        echo "/data already contains data; leaving it untouched"
+    fi
+    rm -rf /app/storage
+fi
+ln -sfnT /data /app/storage
+
+# Re-own /config and /data after seeding (the top own ran before migration).
+# If the framework/logs/plugins directories are missing here, that means the
+# bundled storage tree is broken — surface it rather than silently mkdir them.
+own /config /data /app/bootstrap/cache
 
 echo "**** Generating .env if not present ****"
 if [[ ! -f /config/.env ]]; then
@@ -55,14 +64,13 @@ if [[ ! -f /config/.env ]]; then
         # Self-contained defaults unless the user overrides via env vars.
         if [[ -z "${DB_CONNECTION:-}" ]]; then
             sed -ri 's/^DB_CONNECTION=.*/DB_CONNECTION=sqlite/' /config/.env
-            sed -ri 's|^DB_DATABASE=.*|DB_DATABASE=/config/storage/database.db|' /config/.env
-            sed -ri 's|^PLUGINS_DIR=.*|PLUGINS_DIR=/config/storage/plugins|' /config/.env
+            sed -ri 's|^DB_DATABASE=.*|DB_DATABASE=/data/database.db|' /config/.env
+            sed -ri 's|^PLUGINS_DIR=.*|PLUGINS_DIR=/data/plugins|' /config/.env
         fi
     fi
 fi
 
-echo "**** Linking app data directories to /config ****"
-ln -sfnT /config/storage /app/storage
+echo "**** Linking .env to the persistent config ****"
 ln -sfnT /config/.env /app/.env
 
 echo "**** Applying user-provided environment overrides ****"
@@ -94,9 +102,9 @@ apply_env PWD_METHOD
 apply_env PLUGINS_DIR
 apply_env PLUGINS_URL
 
-# If SQLite, make sure the DB path points to the persistent config location
+# If SQLite, make sure the DB path points to the persistent data directory
 if [[ "${DB_CONNECTION:-sqlite}" = "sqlite" ]] && [[ -n "${DB_DATABASE:-}" ]]; then
-    if [[ "${DB_DATABASE}" != "/config/storage/database.db" ]]; then
+    if [[ "${DB_DATABASE}" != "/data/database.db" ]]; then
         sed -ri "s|^DB_DATABASE=.*|DB_DATABASE=${DB_DATABASE}|" /config/.env
     fi
 fi
@@ -104,9 +112,9 @@ fi
 echo "**** Generating application key if missing ****"
 if ! grep -q "^APP_KEY=base64" /config/.env; then
     cd /app
-    own /config
+    own /config /data
     s6-setuidgid "${RUN_USER}" php artisan key:generate
-    own /config
+    own /config /data
 fi
 
-own /config /app/bootstrap/cache
+own /config /data /app/bootstrap/cache

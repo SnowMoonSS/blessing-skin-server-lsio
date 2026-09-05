@@ -147,9 +147,9 @@ RUN chmod +x /etc/s6-overlay/s6-rc.d/svc-bs/run && \
     chmod +x /etc/s6-overlay/s6-rc.d/init-bs-config/run && \
     a2enconf blessing
 
-# Prepare the persistent /config directory (populated by the init script at runtime)
-RUN mkdir -p /config/storage/framework/cache && \
-    rm -rf /app/storage /app/.env
+# Keep the bundled /app/storage tree so the init script can seed /data on first
+# run. Only /app/.env is removed (it is regenerated at runtime into /config).
+RUN rm -rf /app/.env
 
 EXPOSE 80
-VOLUME ["/config"]
+VOLUME ["/config", "/data"]
