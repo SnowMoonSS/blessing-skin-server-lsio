@@ -100,7 +100,4 @@ fi
 lsiown -R "${RUN_USER}:${RUN_GROUP}" \
     /config \
     /data \
-    /app \
-    /var/run/apache2 \
-    /var/log/apache2 \
-    /var/lock/apache2
+    /app
