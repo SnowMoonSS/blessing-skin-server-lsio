@@ -21,22 +21,18 @@ fi
 sed -ri "s/^export APACHE_RUN_USER=.*/export APACHE_RUN_USER=${RUN_USER}/" /etc/apache2/envvars
 sed -ri "s/^export APACHE_RUN_GROUP=.*/export APACHE_RUN_GROUP=${RUN_GROUP}/" /etc/apache2/envvars
 
-# Fix ownership: use lsiown for the mapped abc user, plain chown otherwise.
+# Change ownership.
 own() {
-    if [[ "${RUN_USER}" = "abc" ]]; then
-        lsiown -R abc:abc "$@"
-    else
-        chown -R www-data:www-data "$@"
-    fi
+    chown -R "${RUN_USER}:${RUN_GROUP}" "$@"
 }
 
 echo "**** Updating Blessing Skin permissions ****"
 own \
-    /app \
+    /config \
+    /app/bootstrap/cache \
     /var/run/apache2 \
     /var/log/apache2 \
-    /var/lock/apache2 \
-    /config
+    /var/lock/apache2
 
 echo "**** Ensuring config directory structure ****"
 mkdir -p \
@@ -50,38 +46,19 @@ mkdir -p \
 
 echo "**** Generating .env if not present ****"
 if [[ ! -f /config/.env ]]; then
-    cat > /config/.env <<'EOF'
-APP_DEBUG=false
-APP_ENV=production
-APP_FALLBACK_LOCALE=en
-APP_URL=
-APP_KEY=
-DB_CONNECTION=sqlite
-DB_HOST=
-DB_PORT=
-DB_DATABASE=/config/storage/database.db
-DB_USERNAME=
-DB_PASSWORD=
-DB_PREFIX=
-PWD_METHOD=BCRYPT
-MAIL_MAILER=smtp
-MAIL_HOST=
-MAIL_PORT=465
-MAIL_ENCRYPTION=
-MAIL_USERNAME=
-MAIL_PASSWORD=
-MAIL_FROM_ADDRESS=
-MAIL_FROM_NAME=
-CACHE_DRIVER=file
-SESSION_DRIVER=file
-QUEUE_CONNECTION=sync
-REDIS_CLIENT=phpredis
-REDIS_HOST=127.0.0.1
-REDIS_PASSWORD=null
-REDIS_PORT=6379
-PLUGINS_DIR=/config/storage/plugins
-PLUGINS_URL=
-EOF
+    if [[ -n "${BLESSING_ENV:-}" ]]; then
+        echo "Writing user-provided .env from BLESSING_ENV"
+        printf '%s' "${BLESSING_ENV}" > /config/.env
+    else
+        echo "Copying default .env.example"
+        cp /app/.env.example /config/.env
+        # Self-contained defaults unless the user overrides via env vars.
+        if [[ -z "${DB_CONNECTION:-}" ]]; then
+            sed -ri 's/^DB_CONNECTION=.*/DB_CONNECTION=sqlite/' /config/.env
+            sed -ri 's|^DB_DATABASE=.*|DB_DATABASE=/config/storage/database.db|' /config/.env
+            sed -ri 's|^PLUGINS_DIR=.*|PLUGINS_DIR=/config/storage/plugins|' /config/.env
+        fi
+    fi
 fi
 
 echo "**** Linking app data directories to /config ****"
@@ -93,8 +70,10 @@ apply_env() {
     local key="$1"
     local val="${!key}"
     if [[ -n "${val}" ]]; then
+        local esc
+        esc=$(printf '%s' "${val}" | sed -e 's/[\\&|]/\\&/g')
         if grep -q "^${key}=" /config/.env; then
-            sed -ri "s|^${key}=.*|${key}=${val}|" /config/.env
+            sed -ri "s|^${key}=.*|${key}=${esc}|" /config/.env
         else
             echo "${key}=${val}" >> /config/.env
         fi
@@ -130,6 +109,4 @@ if ! grep -q "^APP_KEY=base64" /config/.env; then
     own /config
 fi
 
-echo "**** Ensuring SQLite database file exists ****"
-touch /config/storage/database.db
 own /config /app/bootstrap/cache
