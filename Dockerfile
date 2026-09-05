@@ -100,6 +100,10 @@ RUN if [ "${BLESSING_SOURCE}" = "git" ]; then \
     else \
       echo "Release mode: using prebuilt application payload"; \
     fi && \
+    # Ship the base storage structure (static, build-time).
+    # .env and APP_KEY are generated at runtime by init-bs-config/run.
+    touch storage/database.db && \
+    mkdir -p storage/plugins && \
     echo "Builder finished"
 
 ###############################################################################
