@@ -109,7 +109,7 @@ RUN if [ "${BLESSING_SOURCE}" = "git" ]; then \
 ###############################################################################
 # Stage: runtime — LinuxServer.io base + Apache + PHP + s6-overlay
 ###############################################################################
-FROM ghcr.io/linuxserver/baseimage-debian:bookworm
+FROM ghcr.io/linuxserver/baseimage-debian:trixie
 
 ENV S6_VERBOSITY=1 \
     APACHE_DOCUMENT_ROOT=/app/public
