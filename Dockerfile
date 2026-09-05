@@ -3,6 +3,9 @@
 # Modeled after SnowMoonSS/MCSManager-lsio
 
 ARG BUILDPLATFORM=linux/amd64
+# Optional: pin a specific PHP version (e.g. 8.1) pulled from packages.sury.org.
+# Leave empty to use the distro's default PHP (Debian trixie -> 8.4).
+ARG PHP_VERSION=
 
 ###############################################################################
 # Stage: source — fetch the Blessing Skin source (git or release zip)
@@ -111,28 +114,52 @@ RUN if [ "${BLESSING_SOURCE}" = "git" ]; then \
 ###############################################################################
 FROM ghcr.io/linuxserver/baseimage-debian:trixie
 
+ARG PHP_VERSION=
+
 ENV S6_VERBOSITY=1 \
     APACHE_DOCUMENT_ROOT=/app/public
 
-RUN apt-get update && \
+# If PHP_VERSION is provided (e.g. 8.1/8.2/8.4), install that version's
+# packages from packages.sury.org (which also ships older PHP versions for
+# trixie). When PHP_VERSION is empty, use trixie's default PHP (8.4) from the
+# standard Debian archive.
+RUN set -eux; \
+    if [ -n "${PHP_VERSION}" ]; then \
+      MOD="libapache2-mod-php${PHP_VERSION}"; \
+      P="php${PHP_VERSION}-"; \
+      CLI="php${PHP_VERSION}-cli"; \
+    else \
+      MOD="libapache2-mod-php"; \
+      P="php-"; \
+      CLI="php-cli"; \
+    fi; \
+    apt-get update; \
+    if [ -n "${PHP_VERSION}" ]; then \
+      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl ca-certificates; \
+      curl -fsSLo /usr/share/keyrings/deb.sury.org-php.gpg https://packages.sury.org/php/apt.gpg; \
+      echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ $(. /etc/os-release && echo "${VERSION_CODENAME}") main" > /etc/apt/sources.list.d/php.list; \
+      apt-get update; \
+    fi; \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       apache2 \
-      libapache2-mod-php \
-      php-mbstring \
-      php-xml \
-      php-curl \
-      php-zip \
-      php-gd \
-      php-imagick \
-      php-sqlite3 \
-      php-mysql \
-      php-redis \
-      php-opcache \
+      ${MOD} \
+      ${CLI} \
+      ${P}mbstring \
+      ${P}xml \
+      ${P}curl \
+      ${P}zip \
+      ${P}gd \
+      ${P}imagick \
+      ${P}sqlite3 \
+      ${P}mysql \
+      ${P}redis \
+      ${P}opcache \
       curl \
       ca-certificates \
       sqlite3 \
-      netcat-openbsd && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+      netcat-openbsd; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy the built application
 COPY --from=builder /app /app

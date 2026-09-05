@@ -13,10 +13,10 @@
 
 | | |
 | --- | --- |
-| 基础镜像 | `ghcr.io/linuxserver/baseimage-debian:bookworm` |
+| 基础镜像 | `ghcr.io/linuxserver/baseimage-debian:trixie` |
 | 内置 init 系统 | `s6-overlay` 进程监督 |
 | Web 服务器 | Apache (`mod_rewrite` + `.htaccess`) |
-| PHP | 8.x（含 `imagick`、`gd`、`zip` 等必需扩展） |
+| PHP | 由 `PHP_VERSION` 构建参数决定：默认 `8.4`（trixie），可指定 `8.1`/`8.2` 等（经 `packages.sury.org`），含 `imagick`、`gd`、`zip` 等必需扩展 |
 | 数据库 | 默认 SQLite（自包含），支持外部 MySQL/MariaDB |
 | 运行用户 | `abc`（非 root，通过 `PUID`/`PGID` 映射） |
 
@@ -140,23 +140,25 @@ docker build -f Dockerfile \
   -t blessing-skin:local .
 ```
 
-### 从 Release 构建（稳定版）
+### 从 Release 构建（稳定版，需 PHP 8.1）
 
 ```bash
 docker build -f Dockerfile \
   --build-arg BUILDPLATFORM=linux/amd64 \
+  --build-arg PHP_VERSION=8.1 \
   --build-arg BLESSING_VERSION=6.0.2 \
   --build-arg BLESSING_SOURCE=release \
   -t blessing-skin:local .
 ```
 
-> 注意：稳定版 `6.0.2` 不支持 PHP 8.2 及以上。从源码构建（`dev` 分支）默认使用 PHP 8.x 最新版并推荐使用；如需运行 `6.0.2` 请确保运行时 PHP ≤ 8.1。
+> 注意：稳定版 `6.0.2` 不支持 PHP 8.2 及以上，因此构建 `release` 时需显式指定 `--build-arg PHP_VERSION=8.1`（镜像会通过 `packages.sury.org` 安装 PHP 8.1）。从源码构建（`dev` 分支）推荐使用默认 PHP 8.4。
 
 ### 构建参数
 
 | 参数 | 说明 | 默认值 |
 | --- | --- | --- |
 | `BUILDPLATFORM` | 构建平台 | `linux/amd64` |
+| `PHP_VERSION` | 指定 PHP 版本（如 `8.1`/`8.2`/`8.4`），经 `packages.sury.org` 安装；留空使用发行版默认（trixie → `8.4`） | 空 |
 | `BLESSING_REPO` | 源码仓库 | `https://github.com/bs-community/blessing-skin-server.git` |
 | `BLESSING_VERSION` | 版本（git 分支/tag，或 release tag） | `dev` |
 | `BLESSING_SOURCE` | `git`（源码构建）或 `release`（zip） | `git` |
