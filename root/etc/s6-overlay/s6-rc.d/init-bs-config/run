@@ -21,20 +21,6 @@ fi
 sed -ri "s/^export APACHE_RUN_USER=.*/export APACHE_RUN_USER=${RUN_USER}/" /etc/apache2/envvars
 sed -ri "s/^export APACHE_RUN_GROUP=.*/export APACHE_RUN_GROUP=${RUN_GROUP}/" /etc/apache2/envvars
 
-# Change ownership.
-own() {
-    chown -R "${RUN_USER}:${RUN_GROUP}" "$@"
-}
-
-echo "**** Updating Blessing Skin permissions ****"
-own \
-    /config \
-    /data \
-    /app/bootstrap/cache \
-    /var/run/apache2 \
-    /var/log/apache2 \
-    /var/lock/apache2
-
 echo "**** Migrating bundled storage into /data (first run) ****"
 mkdir -p /data
 if [[ -e /app/storage && ! -L /app/storage ]]; then
@@ -47,11 +33,6 @@ if [[ -e /app/storage && ! -L /app/storage ]]; then
     rm -rf /app/storage
 fi
 ln -sfnT /data /app/storage
-
-# Re-own /config and /data after seeding (the top own ran before migration).
-# If the framework/logs/plugins directories are missing here, that means the
-# bundled storage tree is broken — surface it rather than silently mkdir them.
-own /config /data /app/bootstrap/cache
 
 echo "**** Generating .env if not present ****"
 if [[ ! -f /config/.env ]]; then
@@ -112,9 +93,14 @@ fi
 echo "**** Generating application key if missing ****"
 if ! grep -q "^APP_KEY=base64" /config/.env; then
     cd /app
-    own /config /data
-    s6-setuidgid "${RUN_USER}" php artisan key:generate
-    own /config /data
+    php artisan key:generate
 fi
 
-own /config /data /app/bootstrap/cache
+# Permission
+lsiown -R "${RUN_USER}:${RUN_GROUP}" \
+    /config \
+    /data \
+    /app/bootstrap/cache \
+    /var/run/apache2 \
+    /var/log/apache2 \
+    /var/lock/apache2
