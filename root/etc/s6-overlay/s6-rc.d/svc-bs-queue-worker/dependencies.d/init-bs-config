@@ -1,0 +1,2 @@
+# Dependency marker: start this service only after init-bs-config (oneshot)
+# has set up /app/.env, /data and the user mapping.

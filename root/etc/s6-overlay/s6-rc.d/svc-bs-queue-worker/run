@@ -1,0 +1,34 @@
+#!/usr/bin/with-contenv bash
+# shellcheck shell=bash
+
+# Blessing Skin queue worker (s6 longrun service).
+#
+# QUEUE_CONNECTION is read from the app's .env (the real runtime config), then
+# from the process environment, then defaults to "sync". The worker is started
+# ONLY when it is "redis". Otherwise the service does not keep an idle
+# placeholder process: it asks s6 to run it once and then exits, so s6 won't
+# restart it either.
+
+# QUEUE_CONNECTION: prefer .env -> process env -> default "sync".
+_qc="$(grep -E '^QUEUE_CONNECTION=' /config/.env 2>/dev/null | tail -n1 | cut -d= -f2- | xargs)"
+_qc="${_qc:-${QUEUE_CONNECTION:-sync}}"
+
+if [[ "${_qc}" != "redis" ]]; then
+    echo "**** Queue is not Redis; Blessing Skin queue worker has nothing to do ****"
+    s6-svc -O /run/service/svc-bs-queue-worker 2>/dev/null || true
+    exit 0
+fi
+
+# Pick the worker user, consistent with init-bs-config.
+if [[ -z "${LSIO_NON_ROOT_USER:-}" ]]; then
+    RUN_USER="abc"
+else
+    RUN_USER="www-data"
+fi
+
+cd /app
+echo "**** Starting Blessing Skin queue worker (QUEUE_CONNECTION=redis) ****"
+exec s6-setuidgid "${RUN_USER}" php artisan queue:work \
+    --sleep=3 \
+    --tries=3 \
+    --timeout=90

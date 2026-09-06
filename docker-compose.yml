@@ -6,16 +6,66 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Asia/Shanghai
-      # - APP_URL=https://skin.example.com
-      # - DB_CONNECTION=mysql
-      # - DB_HOST=mysql
-      # - DB_PORT=3306
-      # - DB_DATABASE=blessingskin
-      # - DB_USERNAME=blessingskin
-      # - DB_PASSWORD=secret
+      - APP_URL=https://skin.example.com      # ← 改成你的站点地址
+      - APP_DEBUG=false
+      # ---- 数据库（MariaDB/MySQL）----
+      - DB_CONNECTION=mysql
+      - DB_HOST=mariadb                        # 容器网络内的 MariaDB 服务名
+      - DB_PORT=3306
+      - DB_DATABASE=blessingskin
+      - DB_USERNAME=blessingskin
+      - DB_PASSWORD=change-me-db-password
+      - DB_PREFIX=
+      # ---- Redis（缓存 / 会话 / 队列）----
+      - CACHE_DRIVER=redis
+      - SESSION_DRIVER=redis
+      - QUEUE_CONNECTION=redis                 # 需另跑 php artisan queue:work
+      - REDIS_CLIENT=phpredis
+      - REDIS_HOST=redis                       # 容器网络内的 Redis 服务名
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=change-me-redis-password
     ports:
       - "80:80"
     volumes:
       - ./config:/config   # .env 等配置
-      - ./data:/data       # storage / 数据库 / 插件等数据
+      - ./data:/data       # storage / 插件等数据
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mariadb:
+    image: mariadb:11
+    container_name: blessing-skin-mariadb
+    environment:
+      - MARIADB_ROOT_PASSWORD=change-me-root-password
+      - MARIADB_DATABASE=blessingskin
+      - MARIADB_USER=blessingskin
+      - MARIADB_PASSWORD=change-me-db-password
+    volumes:
+      - ./mariadb:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -u root -p$$MARIADB_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: blessing-skin-redis
+    command: redis-server --requirepass change-me-redis-password
+    environment:
+      - REDIS_PASSWORD=change-me-redis-password
+    volumes:
+      - ./redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped

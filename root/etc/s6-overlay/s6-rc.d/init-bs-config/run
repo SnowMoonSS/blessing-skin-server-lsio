@@ -96,6 +96,13 @@ apply_env PWD_METHOD
 apply_env PLUGINS_DIR
 apply_env PLUGINS_URL
 apply_env PLUGINS_REGISTRY
+apply_env CACHE_DRIVER
+apply_env SESSION_DRIVER
+apply_env QUEUE_CONNECTION
+apply_env REDIS_CLIENT
+apply_env REDIS_HOST
+apply_env REDIS_PASSWORD
+apply_env REDIS_PORT
 
 # If SQLite, make sure the DB path points to the persistent data directory
 if [[ "${DB_CONNECTION:-sqlite}" = "sqlite" ]] && [[ -n "${DB_DATABASE:-}" ]]; then
