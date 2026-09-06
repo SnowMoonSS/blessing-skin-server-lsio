@@ -179,9 +179,5 @@ RUN chmod +x /etc/s6-overlay/s6-rc.d/svc-bs/run && \
     chmod +x /etc/s6-overlay/s6-rc.d/svc-bs-queue-worker/run && \
     a2enconf blessing
 
-# Keep the bundled /app/storage tree so the init script can seed /data on first
-# run. Only /app/.env is removed (it is regenerated at runtime into /config).
-RUN rm -rf /app/.env
-
 EXPOSE 80
 VOLUME ["/config", "/data"]
