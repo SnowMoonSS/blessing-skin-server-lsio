@@ -176,7 +176,7 @@ COPY root/ /
 
 RUN chmod +x /etc/s6-overlay/s6-rc.d/svc-bs/run && \
     chmod +x /etc/s6-overlay/s6-rc.d/init-bs-config/run && \
-    chmod +x /etc/s6-overlay/s6-rc.d/bs-queue-worker/run && \
+    chmod +x /etc/s6-overlay/s6-rc.d/svc-bs-queue-worker/run && \
     a2enconf blessing
 
 # Keep the bundled /app/storage tree so the init script can seed /data on first
