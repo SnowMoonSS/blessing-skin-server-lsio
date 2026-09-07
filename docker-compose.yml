@@ -1,6 +1,6 @@
 services:
   blessing-skin:
-    image: ghcr.io/snowmoonss/blessing-skin-server:latest
+    image: ghcr.io/snowmoonss/blessing-skin-server:nightly
     container_name: blessing-skin
     environment:
       - PUID=1000
@@ -14,7 +14,7 @@ services:
       - DB_PORT=3306
       - DB_DATABASE=blessingskin
       - DB_USERNAME=blessingskin
-      - DB_PASSWORD=change-me-db-password
+      - DB_PASSWORD=blessingskin
       - DB_PREFIX=
       # ---- Redis（缓存 / 会话 / 队列）----
       - CACHE_DRIVER=redis
@@ -23,7 +23,7 @@ services:
       - REDIS_CLIENT=phpredis
       - REDIS_HOST=redis                       # 容器网络内的 Redis 服务名
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=change-me-redis-password
+      - REDIS_PASSWORD=blessingskin
     ports:
       - "80:80"
     volumes:
@@ -38,12 +38,11 @@ services:
 
   mariadb:
     image: mariadb:11
-    container_name: blessing-skin-mariadb
     environment:
-      - MARIADB_ROOT_PASSWORD=change-me-root-password
+      - MARIADB_ROOT_PASSWORD=blessingskin
       - MARIADB_DATABASE=blessingskin
       - MARIADB_USER=blessingskin
-      - MARIADB_PASSWORD=change-me-db-password
+      - MARIADB_PASSWORD=blessingskin
     volumes:
       - ./mariadb:/var/lib/mysql
     healthcheck:
@@ -56,10 +55,9 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: blessing-skin-redis
-    command: redis-server --requirepass change-me-redis-password
+    command: redis-server --requirepass blessingskin
     environment:
-      - REDIS_PASSWORD=change-me-redis-password
+      - REDIS_PASSWORD=blessingskin
     volumes:
       - ./redis:/data
     healthcheck:
@@ -72,8 +70,7 @@ services:
 
   # Janus — Yggdrasil Connect 服务端
   janus:
-    image: ghcr.io/snowmoonss/janus:latest
-    container_name: janus
+    image: ghcr.io/snowmoonss/janus:nightly
     environment:
       - PUID=1000
       - PGID=1000
@@ -83,7 +80,7 @@ services:
       - DB_HOST=mariadb
       - DB_PORT=3306
       - DB_USERNAME=blessingskin
-      - DB_PASSWORD=change-me-db-password
+      - DB_PASSWORD=blessingskin
       - DB_NAME=blessingskin
       # - DB_PREFIX=bs_                        # 若皮肤站配置了表前缀则打开
       # ---- OpenID 提供者标识符 & 皮肤站地址（必须 HTTPS、不得以 / 结尾）----
