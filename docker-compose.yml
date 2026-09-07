@@ -71,7 +71,6 @@ services:
     restart: unless-stopped
 
   # Janus — Yggdrasil Connect 服务端
-  # 需预置 ./janus-config/oauth-private.key（从 Blessing Skin 的 storage/ 复制）。
   janus:
     image: ghcr.io/snowmoonss/janus:latest
     container_name: janus
@@ -91,15 +90,12 @@ services:
       - ISSUER=https://auth.example.com        # ← 改成你的 Janus 对外地址
       - BS_SITE_URL=https://skin.example.com   # ← 改成你的皮肤站地址
       - SHARED_CLIENT_ID=
-      # ---- 令牌有效期（秒）----
-      - TOKEN_EXPIRES_IN_1=259200
-      - TOKEN_EXPIRES_IN_2=604800
-      - DEVICE_CODE_EXPIRES_IN=600
-      - GRANT_EXPIRES_IN=25920000
     ports:
       - "3000:3000"
     volumes:
-      - ./janus-config:/config   # .env 及 oauth-private.key
+      - ./janus-config:/config
+      - ./data:/server-storage:ro     # 读取 Blessing Skin 的 oauth-private.key
+      - ./janus-data:/data            # 数据库备份目录
     depends_on:
       mariadb:
         condition: service_healthy
