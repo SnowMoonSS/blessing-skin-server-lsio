@@ -19,7 +19,7 @@ services:
       # ---- Redis（缓存 / 会话 / 队列）----
       - CACHE_DRIVER=redis
       - SESSION_DRIVER=redis
-      - QUEUE_CONNECTION=redis                 # 需另跑 php artisan queue:work
+      - QUEUE_CONNECTION=redis
       - REDIS_CLIENT=phpredis
       - REDIS_HOST=redis                       # 容器网络内的 Redis 服务名
       - REDIS_PORT=6379
@@ -68,4 +68,39 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    restart: unless-stopped
+
+  # Janus — Yggdrasil Connect 服务端
+  # 需预置 ./janus-config/oauth-private.key（从 Blessing Skin 的 storage/ 复制）。
+  janus:
+    image: ghcr.io/snowmoonss/janus:latest
+    container_name: janus
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Shanghai
+      - PORT=3000
+      # ---- 数据库（与 Blessing Skin 共享同一个 MariaDB）----
+      - DB_HOST=mariadb
+      - DB_PORT=3306
+      - DB_USERNAME=blessingskin
+      - DB_PASSWORD=change-me-db-password
+      - DB_NAME=blessingskin
+      # - DB_PREFIX=bs_                        # 若皮肤站配置了表前缀则打开
+      # ---- OpenID 提供者标识符 & 皮肤站地址（必须 HTTPS、不得以 / 结尾）----
+      - ISSUER=https://auth.example.com        # ← 改成你的 Janus 对外地址
+      - BS_SITE_URL=https://skin.example.com   # ← 改成你的皮肤站地址
+      - SHARED_CLIENT_ID=
+      # ---- 令牌有效期（秒）----
+      - TOKEN_EXPIRES_IN_1=259200
+      - TOKEN_EXPIRES_IN_2=604800
+      - DEVICE_CODE_EXPIRES_IN=600
+      - GRANT_EXPIRES_IN=25920000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./janus-config:/config   # .env 及 oauth-private.key
+    depends_on:
+      mariadb:
+        condition: service_healthy
     restart: unless-stopped
