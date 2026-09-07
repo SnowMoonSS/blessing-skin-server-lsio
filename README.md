@@ -18,7 +18,7 @@
 | Web 服务器 | Apache (`mod_rewrite` + `.htaccess`) |
 | PHP | 由 `PHP_VERSION` 构建参数决定：默认 `8.4`（trixie），可指定 `8.1`/`8.2` 等（经 `packages.sury.org`），含 `imagick`、`gd`、`zip` 等必需扩展 |
 | 数据库 | 默认 SQLite（自包含），支持外部 MySQL/MariaDB |
-| 运行用户 | `abc`（非 root，通过 `PUID`/`PGID` 映射） |
+| 运行用户 | 设置 `PUID`/`PGID` 时用 `abc`，否则回退为 `www-data`（非 root） |
 
 ## LinuxServer Base Image 提供的功能
 
@@ -28,6 +28,7 @@ s6-overlay 作为 PID 1 运行，提供僵尸进程回收、服务依赖管理�
 
 * `root/etc/s6-overlay/s6-rc.d/init-bs-config/` — 配置初始化
 * `root/etc/s6-overlay/s6-rc.d/svc-bs/` — Apache 服务
+* `root/etc/s6-overlay/s6-rc.d/svc-bs-queue-worker/` — 队列 Worker（仅当 `QUEUE_CONNECTION=redis` 时运行）
 
 ### 2. PUID / PGID 用户映射
 
@@ -62,9 +63,26 @@ environment:
 * `/data`  — 存放 `storage`（SQLite 数据库、日志、插件、framework 缓存等），挂载 `./data:/data` 持久化。
 * 镜像把 `/app/storage` 软链到 `/data`、`/app/.env` 软链到 `/config/.env`；首次启动时把内置的 `storage` 目录树播种到 `/data`。
 
+### 8. Redis 队列 Worker
+
+镜像内置一个由 s6 监督的队列 Worker 服务（`svc-bs-queue-worker`）。当应用使用 Redis 作为队列驱动（`QUEUE_CONNECTION=redis`）时，会以与 Apache 相同的运行用户执行 `php artisan queue:work` 并自动重启；若队列不是 Redis（默认 `sync`），该服务不会运行、也不会占用空闲进程。
+
+```yaml
+environment:
+  - CACHE_DRIVER=redis
+  - SESSION_DRIVER=redis
+  - QUEUE_CONNECTION=redis
+  - REDIS_CLIENT=phpredis
+  - REDIS_HOST=redis
+  - REDIS_PORT=6379
+  - REDIS_PASSWORD=change-me-redis-password
+```
+
 ## 快速开始
 
 ### Docker Compose
+
+最简单的自包含方式（默认 SQLite，无需外部数据库或 Redis）：
 
 ```yaml
 services:
@@ -75,22 +93,17 @@ services:
       - PUID=1000        # 宿主机用户 UID
       - PGID=1000        # 宿主机用户 GID
       - TZ=Asia/Shanghai
-      # - DB_CONNECTION=mysql      # 使用外部 MySQL 时打开
-      # - DB_HOST=mysql
-      # - DB_PORT=3306
-      # - DB_DATABASE=blessingskin
-      # - DB_USERNAME=blessingskin
-      # - DB_PASSWORD=secret
-      # - APP_URL=https://skin.example.com
+      - APP_URL=https://skin.example.com      # ← 改成你的站点地址
+      - APP_DEBUG=false
     ports:
       - "80:80"
     volumes:
       - ./config:/config   # .env 配置
-      - ./data:/data       # storage / 数据库 / 插件等数据
+      - ./data:/data       # SQLite 数据库 / storage / 插件等数据
     restart: unless-stopped
 ```
 
-使用 SQLite 时无需额外配置；若使用 MySQL，请先创建数据库并取消上面的 `DB_*` 注释（使用 `DB_CONNECTION=mysql`）。
+> 默认使用 SQLite，无需任何外部依赖。若需 MySQL/MariaDB + Redis（并启用队列 Worker / 接入 Janus），请改用仓库内完整的 `docker-compose.yml`，并参考下方「启用 Yggdrasil Connect（可选）」。
 
 ### 手动运行
 
@@ -108,6 +121,40 @@ docker run -d \
 
 启动后访问 `http://<host>/setup` 进入安装向导，按提示完成初始化。上传皮肤时请确认 `gd` / `imagick` 扩展正常（日志见 `/data/logs/laravel.log`）。
 
+### 启用 Yggdrasil Connect（可选）
+
+如需为皮肤站提供 Yggdrasil Connect 外置登录，可在同一 `docker-compose.yml` 中启动 `janus` 服务（镜像 `ghcr.io/snowmoonss/janus:latest`）。它需要与本容器**共享同一个 MariaDB 数据库**，并通过只读挂载本容器的 `./data` 来读取 `oauth-private.key` 签名密钥：
+
+```yaml
+  janus:
+    image: ghcr.io/snowmoonss/janus:latest
+    container_name: janus
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Shanghai
+      - PORT=3000
+      - DB_HOST=mariadb
+      - DB_PORT=3306
+      - DB_USERNAME=blessingskin
+      - DB_PASSWORD=change-me-db-password
+      - DB_NAME=blessingskin
+      - ISSUER=https://auth.example.com        # ← 你的 Janus 对外地址（HTTPS）
+      - BS_SITE_URL=https://skin.example.com   # ← 你的皮肤站地址（HTTPS）
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./janus-config:/config
+      - ./data:/server-storage:ro
+      - ./janus-data:/data
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    restart: unless-stopped
+```
+
+启动 Janus 后，在皮肤站的 Yggdrasil Connect 插件配置页填写其 `ISSUER` 即可。完整说明见 [blessing-skin-janus-lsio](https://github.com/snowmoonss/blessing-skin-janus-lsio)。
+
 ## 环境变量
 
 | 变量 | 说明 | 默认值 |
@@ -116,6 +163,14 @@ docker run -d \
 | `TZ` | 容器时区 | 未设置 |
 | `APP_URL` | 站点 URL | 未设置 |
 | `APP_DEBUG` | 是否开启调试 | `false` |
+| `APP_ENV` | 应用环境 | `production` |
+| `CACHE_DRIVER` | 缓存驱动（`file`/`redis`） | `file` |
+| `SESSION_DRIVER` | 会话驱动（`file`/`redis`） | `file` |
+| `QUEUE_CONNECTION` | 队列驱动（`sync`/`redis`，Redis 时启动队列 Worker） | `sync` |
+| `REDIS_CLIENT` | Redis 客户端（`phpredis`） | `phpredis` |
+| `REDIS_HOST` | Redis 地址 | 未设置 |
+| `REDIS_PORT` | Redis 端口 | `6379` |
+| `REDIS_PASSWORD` | Redis 密码 | 未设置 |
 | `DB_CONNECTION` | `sqlite` 或 `mysql` | `sqlite` |
 | `DB_HOST` / `DB_PORT` | MySQL 地址 / 端口 | 未设置 |
 | `DB_DATABASE` | 数据库名或 SQLite 文件路径 | `/data/database.db` |
@@ -127,7 +182,7 @@ docker run -d \
 | `PLUGINS_REGISTRY` | 插件市场注册表地址（`{lang}` 会替换为语言） | `https://bs-plugins.littleservice.cn/registry_{lang}.json` |
 | `BLESSING_ENV` | 直接提供完整 `.env` 内容（多行），覆盖默认生成 | 未设置 |
 
-> 所有 `DB_*` / `APP_*` 变量会在容器启动时写入 `/config/.env`；`BLESSING_ENV` 会整体写入 `.env`（适用于需要自定义更多配置项的进阶场景）。
+> 上述 `DB_*`、`APP_*`、`REDIS_*`、`QUEUE_*` 等变量会在容器启动时写入 `/config/.env`（仅当用户设置了对应环境变量时覆盖相应项）；`BLESSING_ENV` 会整体写入 `.env`（适用于需要自定义更多配置项的进阶场景）。
 
 ## 开发与构建
 
