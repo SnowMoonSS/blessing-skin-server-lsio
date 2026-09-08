@@ -103,6 +103,7 @@ services:
     restart: unless-stopped
 ```
 
+> [!NOTE]
 > 默认使用 SQLite，无需任何外部依赖。若需 MySQL/MariaDB + Redis（并启用队列 Worker / 接入 Janus），请改用仓库内完整的 `docker-compose.yml`，并参考下方「启用 Yggdrasil Connect（可选）」。
 
 ### 手动运行
@@ -182,7 +183,11 @@ docker run -d \
 | `PLUGINS_REGISTRY` | 插件市场注册表地址（`{lang}` 会替换为语言） | `https://bs-plugins.littleservice.cn/registry_{lang}.json` |
 | `BLESSING_ENV` | 直接提供完整 `.env` 内容（多行），覆盖默认生成 | 未设置 |
 
+> [!NOTE]
 > 上述 `DB_*`、`APP_*`、`REDIS_*`、`QUEUE_*` 等变量会在容器启动时写入 `/config/.env`（仅当用户设置了对应环境变量时覆盖相应项）；`BLESSING_ENV` 会整体写入 `.env`（适用于需要自定义更多配置项的进阶场景）。
+
+> [!IMPORTANT]
+> 使用 `nightly` 版本时，插件市场中的某些插件可能无法正常运行。比如启用 OAuth 插件后会出现依赖冲突导致网站崩溃。
 
 ## 开发与构建
 
@@ -207,6 +212,7 @@ docker build -f Dockerfile \
   -t blessing-skin:local .
 ```
 
+> [!CAUTION]
 > 注意：稳定版 `6.0.2` 不支持 PHP 8.2 及以上，因此构建 `release` 时需显式指定 `--build-arg PHP_VERSION=8.1`（镜像会通过 `packages.sury.org` 安装 PHP 8.1）。从源码构建（`dev` 分支）推荐使用默认 PHP 8.4。
 
 ### 构建参数
