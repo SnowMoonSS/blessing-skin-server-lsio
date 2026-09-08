@@ -98,13 +98,10 @@ COPY --from=frontend /app/resources/views/assets ./resources/views/assets
 RUN if [ "${BLESSING_SOURCE}" = "git" ]; then \
       echo "Optimizing autoloader and cleaning dev files" && \
       composer dump-autoload --no-dev -o && \
-      rm -rf *.config.js *.config.ts tsconfig.* package.json yarn.lock node_modules/ \
-        resources/assets/ resources/misc resources/misc/backgrounds/ tools/; \
+      rm -rf *.config.js *.config.ts tsconfig.* package.json yarn.lock node_modules/; \
     else \
       echo "Release mode: using prebuilt application payload"; \
     fi && \
-    # Ship the base storage structure (static, build-time).
-    # .env and APP_KEY are generated at runtime by init-bs-config/run.
     touch storage/database.db && \
     mkdir -p storage/plugins && \
     echo "Builder finished"
