@@ -43,10 +43,12 @@ if [[ ! -f /config/.env ]]; then
         echo "Copying default .env.example"
         cp /app/.env.example /config/.env
         # Self-contained defaults unless the user overrides via env vars.
+        # Plugins are always persisted under /data/plugins, regardless of the
+        # database driver.
+        sed -ri 's|^PLUGINS_DIR=.*|PLUGINS_DIR=/data/plugins|' /config/.env
         if [[ -z "${DB_CONNECTION:-}" ]]; then
             sed -ri 's/^DB_CONNECTION=.*/DB_CONNECTION=sqlite/' /config/.env
             sed -ri 's|^DB_DATABASE=.*|DB_DATABASE=/data/database.db|' /config/.env
-            sed -ri 's|^PLUGINS_DIR=.*|PLUGINS_DIR=/data/plugins|' /config/.env
         fi
     fi
 fi
