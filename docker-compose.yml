@@ -1,7 +1,7 @@
 services:
   blessing-skin:
     image: ghcr.io/snowmoonss/blessing-skin-server:nightly
-    container_name: blessing-skin
+    container_name: blessing-skin-server
     environment:
       - PUID=1000
       - PGID=1000
