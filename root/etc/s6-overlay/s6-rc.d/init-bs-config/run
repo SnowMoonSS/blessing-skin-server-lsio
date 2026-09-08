@@ -21,7 +21,7 @@ fi
 sed -ri "s/^export APACHE_RUN_USER=.*/export APACHE_RUN_USER=${RUN_USER}/" /etc/apache2/envvars
 sed -ri "s/^export APACHE_RUN_GROUP=.*/export APACHE_RUN_GROUP=${RUN_GROUP}/" /etc/apache2/envvars
 
-echo "**** Migrating bundled storage into /data (first run) ****"
+echo "Migrating bundled storage into /data (first run)..."
 mkdir -p /data
 if [[ -e /app/storage && ! -L /app/storage ]]; then
     if [[ -z "$(ls -A /data 2>/dev/null)" ]]; then
@@ -34,7 +34,7 @@ if [[ -e /app/storage && ! -L /app/storage ]]; then
 fi
 ln -sfnT /data /app/storage
 
-echo "**** Generating .env if not present ****"
+echo "Generating .env if not present..."
 if [[ ! -f /config/.env ]]; then
     if [[ -n "${BLESSING_ENV:-}" ]]; then
         echo "Writing user-provided .env from BLESSING_ENV"
@@ -53,7 +53,7 @@ if [[ ! -f /config/.env ]]; then
     fi
 fi
 
-echo "**** Ensuring a working plugin market registry ****"
+echo "Ensuring a working plugin market registry..."
 # The 6.0.2 release default (gplane.coding.net) now returns a "user not logged
 # in" JSON without a `packages` key, which breaks the plugin market
 # ("Undefined array key 'packages'"). Default to the community registry used by
@@ -66,10 +66,10 @@ if ! grep -q '^PLUGINS_REGISTRY=' /config/.env; then
     fi
 fi
 
-echo "**** Linking .env to the persistent config ****"
+echo "Linking .env to the persistent config..."
 ln -sfnT /config/.env /app/.env
 
-echo "**** Applying user-provided environment overrides ****"
+echo "Applying user-provided environment overrides..."
 apply_env() {
     local key="$1"
     local val="${!key}"
@@ -113,13 +113,14 @@ if [[ "${DB_CONNECTION:-sqlite}" = "sqlite" ]] && [[ -n "${DB_DATABASE:-}" ]]; t
     fi
 fi
 
-echo "**** Generating application key if missing ****"
+echo "Generating application key if missing..."
 if ! grep -q "^APP_KEY=base64" /config/.env; then
     cd /app
     php artisan key:generate
 fi
 
 # Permission
+echo "Setting ownership of /config, /data, and /app to ${RUN_USER}:${RUN_GROUP}..."
 lsiown -R "${RUN_USER}:${RUN_GROUP}" \
     /config \
     /data \
